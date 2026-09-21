@@ -1,0 +1,2012 @@
+<!--
+  O'right 森林人格測驗
+  ------------------------------------------------------------
+  結構導覽（方便之後維護／修改）：
+    <style>      版面樣式，依區塊分段：畫面基底／首頁／暱稱／測驗／結果／分享／頂部品牌列
+    <body>       四個畫面（.screen）：intro → nickname → quiz → result，同一時間只顯示一個
+    <script>     DATA  區：FOREST_TYPES（5種森林結果內容）／PRODUCT_IMAGES（產品圖）／
+                          QUESTIONS（5題題庫）／ICONS（svg 圖示）
+                 LOGIC 區：測驗流程（startQuiz → renderQuestion → selectOption → finishQuiz
+                          → renderResult）、分享功能（shareResult 系列）
+
+  圖片說明：所有圖片已改為外部檔案，統一放在 images/ 資料夾中，使用時請將
+  本檔案與 images 資料夾放在同一層目錄下，不可分開存放。
+  ------------------------------------------------------------
+-->
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>森林人格測驗｜你的頭皮，是哪一種森林？</title>
+<link rel="preload" as="image" type="image/webp" href="images/result_template_rain.webp?v=20260903">
+<link rel="preload" as="image" type="image/webp" href="images/result_template_conifer.webp?v=20260903">
+<link rel="preload" as="image" type="image/webp" href="images/result_template_mixed.webp?v=20260903">
+<link rel="preload" as="image" type="image/webp" href="images/result_template_decid.webp?v=20260903">
+<link rel="preload" as="image" type="image/webp" href="images/result_template_fog.webp?v=20260903">
+<style>
+  @font-face{
+    font-family:'GenYoGothic1501';
+    src:url('fonts/GenYoGothicTW-ExtraLight-1501.ttf') format('truetype');
+    font-weight:300;
+    font-style:normal;
+    font-display:swap;
+  }
+  @font-face{
+    font-family:'GenYoGothic1501';
+    src:url('fonts/GenYoGothicTW-Regular-1501.ttf') format('truetype');
+    font-weight:400;
+    font-style:normal;
+    font-display:swap;
+  }
+  @font-face{
+    font-family:'GenYoGothic1501';
+    src:url('fonts/GenYoGothicTW-Medium-1501.ttf') format('truetype');
+    font-weight:500 600;
+    font-style:normal;
+    font-display:swap;
+  }
+  @font-face{
+    font-family:'GenYoGothic1501';
+    src:url('fonts/GenYoGothicTW-Bold-1501.ttf') format('truetype');
+    font-weight:700 900;
+    font-style:normal;
+    font-display:swap;
+  }
+  @font-face{
+    font-family:'GenYoMin1501';
+    src:url('fonts/GenYoMinTW-Regular-1501.ttf') format('truetype');
+    font-weight:400;
+    font-style:normal;
+    font-display:swap;
+  }
+  @font-face{
+    font-family:'GenYoMin1501';
+    src:url('fonts/GenYoMinTW-Medium-1501.ttf') format('truetype');
+    font-weight:500;
+    font-style:normal;
+    font-display:swap;
+  }
+  @font-face{
+    font-family:'GenYoMin1501';
+    src:url('fonts/GenYoMinTW-SemiBold-1501.ttf') format('truetype');
+    font-weight:600;
+    font-style:normal;
+    font-display:swap;
+  }
+  @font-face{
+    font-family:'GenYoMin1501';
+    src:url('fonts/GenYoMinTW-Bold-1501.ttf') format('truetype');
+    font-weight:700 900;
+    font-style:normal;
+    font-display:swap;
+  }
+  :root{
+    --cream: #F7F4EC;
+    --cream-deep: #EFEADB;
+    --ink: #2B2B22;
+    --ink-soft: #6B6A5E;
+    --forest: #2F4A34;
+    --forest-deep: #1E3323;
+    --olive: #6B7F5D;
+    --gold: #C9A66B;
+    --line: rgba(43,43,34,0.12);
+    --card: #FFFFFF;
+    --shadow: 0 20px 50px -25px rgba(30,51,35,0.35);
+    --radius: 18px;
+    --serif: 'GenYoGothic1501', sans-serif;
+    --sans: 'GenYoGothic1501', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family: var(--sans);
+    background: var(--cream);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    overflow-x:hidden;
+  }
+  .app{ max-width: 640px; margin: 0 auto; min-height:100vh; position:relative; background:var(--cream); box-shadow: 0 0 80px rgba(0,0,0,0.06);}
+
+  /* ================= SCREEN BASE ================= */
+  .screen{ display:none; min-height:100vh; flex-direction:column; }
+  .screen.active{ display:flex; animation: fadeIn .5s ease; }
+
+  .nickname-top{ padding: 18px 20px 0; }
+  .nickname-body{ flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; padding: 20px 30px 60px; text-align:center; }
+  .nickname-title{ font-family:var(--serif); font-size:20px; font-weight:600; color:var(--forest-deep); line-height:1.6; margin-bottom:30px; }
+  .nickname-field{ width:100%; max-width:280px; margin-bottom:26px; }
+  .nickname-field input{
+    width:100%; border:none; border-bottom:2px solid var(--olive); background:transparent; text-align:center;
+    font-family:var(--serif); font-size:17px; color:var(--forest-deep); padding:8px 4px; outline:none;
+  }
+  .nickname-field input::placeholder{ color:var(--ink-soft); font-size:13.5px; font-family:inherit; }
+  .nickname-field input:focus{ border-bottom-color:var(--gold); }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+
+  /* ---------- floating leaf ambient particles ---------- */
+  .leaf-particles{ position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:1; }
+  .leaf-particles span{
+    position:absolute; top:-40px; display:block; opacity:0.35;
+    animation: leafFall linear infinite;
+    color: var(--olive);
+  }
+  .leaf-particles span svg{ width:100%; height:100%; display:block; }
+  @keyframes leafFall{
+    0%{ transform: translateY(-10%) translateX(0) rotate(0deg); opacity:0; }
+    10%{ opacity:0.4; }
+    90%{ opacity:0.3; }
+    100%{ transform: translateY(650px) translateX(24px) rotate(220deg); opacity:0; }
+  }
+
+  @keyframes popIn{
+    0%{ transform:scale(0.4); opacity:0; }
+    60%{ transform:scale(1.08); opacity:1; }
+    100%{ transform:scale(1); opacity:1; }
+  }
+  @keyframes riseIn{
+    from{ opacity:0; transform: translateY(16px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  @keyframes drawCheck{
+    from{ stroke-dashoffset: 20; }
+    to{ stroke-dashoffset: 0; }
+  }
+  @keyframes shimmer{
+    0%{ background-position: -200% 0; }
+    100%{ background-position: 200% 0; }
+  }
+  @keyframes softFloat{
+    0%,100%{ transform: translateY(0); }
+    50%{ transform: translateY(-6px); }
+  }
+  @keyframes pulseRing{
+    0%{ box-shadow: 0 0 0 0 rgba(47,74,52,0.28); }
+    70%{ box-shadow: 0 0 0 14px rgba(47,74,52,0); }
+    100%{ box-shadow: 0 0 0 0 rgba(47,74,52,0); }
+  }
+
+  /* ================= INTRO / HERO ================= */
+  #screen-intro{ position:relative; }
+  .hero-media{
+    position:relative; width:100%; aspect-ratio: 4/5; overflow:hidden;
+    background: var(--cream-deep);
+  }
+  .hero-media img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .hero-media::after{
+    content:''; position:absolute; inset:0;
+    background: linear-gradient(180deg, rgba(30,51,35,0) 35%, rgba(20,32,22,0.55) 78%, rgba(16,26,18,0.88) 100%);
+  }
+  .hero-copy{
+    position:absolute; left:0; right:0; bottom:0; padding: 28px 26px 34px;
+    color:#fff; z-index:2;
+  }
+  .eyebrow-pill{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:12px; letter-spacing:0.12em; padding:6px 14px;
+    border:1px solid rgba(255,255,255,0.55); border-radius:100px;
+    color:#EDEADB; margin-bottom:14px; backdrop-filter: blur(2px);
+    animation: riseIn .6s ease both .1s;
+  }
+  .hero-copy h1{
+    font-family:var(--serif); font-weight:600; font-size:36px; line-height:1.28; margin:0 0 8px;
+    letter-spacing:0.02em; animation: riseIn .65s cubic-bezier(.2,.7,.3,1) both .2s;
+  }
+  .hero-copy p{ margin:0; font-size:13.5px; color:#DAD6C4; line-height:1.7; max-width:420px; animation: riseIn .6s ease both .32s; }
+
+  .intro-below{ padding: 28px 26px 40px; flex:1; display:flex; flex-direction:column; }
+  .intro-lead{ font-size:14px; color:var(--ink-soft); line-height:1.9; margin: 0 0 22px; }
+
+  .mascot-intro-card{
+    display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--line);
+    border-radius:16px; padding:14px 16px; margin-bottom:22px;
+  }
+  .mascot-intro-card .mascot-icon{ width:42px; height:42px; }
+  .mascot-intro-name{ font-family:var(--serif); font-size:13px; font-weight:700; color:var(--forest-deep); margin-bottom:2px; }
+  .mascot-intro-line{ font-size:12px; color:var(--ink-soft); line-height:1.5; }
+
+  .btn-primary{
+    appearance:none; border:none; cursor:pointer; width:100%;
+    background: var(--forest); color:#fff; font-family:var(--sans); font-weight:600; font-size:15.5px;
+    padding:17px 20px; border-radius:100px; letter-spacing:0.03em;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    box-shadow: var(--shadow); transition: transform .25s ease, background .25s ease, box-shadow .25s ease;
+    animation: riseIn .6s ease both .1s, pulseRing 2.6s ease-out infinite 1.2s;
+  }
+  .btn-primary:hover{ background: var(--forest-deep); transform: translateY(-2px); }
+  .btn-primary:active{ transform: translateY(0) scale(0.98); }
+  .btn-primary svg{ width:16px; height:16px; transition: transform .25s ease; }
+  .btn-primary:hover svg{ transform: translateX(3px); }
+
+  .btn-ghost{
+    appearance:none; cursor:pointer; width:100%; background:transparent;
+    color: var(--forest); font-family:var(--sans); font-weight:600; font-size:14px;
+    padding:13px 20px; border-radius:100px; border:1.4px solid var(--forest);
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+
+  /* ================= QUIZ ================= */
+  #screen-quiz{ padding: 22px 24px 34px; position:relative; overflow:hidden; }
+  #screen-quiz .leaf-particles{ opacity:0.5; z-index:0; }
+  #screen-quiz > *:not(.leaf-particles){ position:relative; z-index:1; }
+
+  .quiz-top{ display:flex; align-items:flex-start; gap:26px; margin-bottom:18px; }
+  .quiz-back{
+    width:36px; height:36px; border-radius:50%; border:1px solid var(--line); background:#fff;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;
+  }
+  .journey-wrap{ flex:1; }
+  .journey-track{ display:flex; align-items:center; margin-top:13.5px; }
+  .journey-dot{ width:9px; height:9px; border-radius:50%; background: var(--line); flex-shrink:0; transition: background .35s ease, transform .35s ease; }
+  .journey-dot.done{ background: var(--olive); }
+  .journey-dot.current{ background: var(--forest); transform: scale(1.5); box-shadow: 0 0 0 4px rgba(47,74,52,0.15); }
+  .journey-line{ flex:1; height:2px; background: var(--line); margin:0 4px; border-radius:2px; overflow:hidden; }
+  .journey-line-fill{ height:100%; background: var(--olive); width:0%; transition: width .4s ease; }
+  .journey-label{ font-size:11px; color:var(--ink-soft); margin-top:8px; letter-spacing:0.02em; }
+
+  .mascot-icon{ width:40px; height:40px; flex-shrink:0; animation: softFloat 4.5s ease-in-out infinite; }
+  .mascot-icon svg{ width:100%; height:100%; display:block; }
+
+  .q-scene-tag{ font-size:12px; color:var(--gold); font-weight:600; letter-spacing:0.1em; margin-bottom:10px; }
+  .q-mascot-line{ display:flex; align-items:center; gap:10px; margin-bottom:18px; }
+  .q-mascot-line .mascot-icon{ width:34px; height:34px; }
+  #mascotSpeech{ font-family:var(--serif); font-size:15.5px; color:var(--ink); line-height:1.5; font-weight:500; }
+  #mascotSpeech.is-typing::after{
+    content:'｜'; display:inline-block; margin-left:1px; color:var(--olive);
+    animation: typingCursor .72s steps(1,end) infinite;
+  }
+  @keyframes typingCursor{ 50%{ opacity:0; } }
+  @media (prefers-reduced-motion: reduce){
+    #mascotSpeech.is-typing::after{ display:none; }
+  }
+
+  .q-title{ font-family:var(--serif); font-size:23px; line-height:1.5; font-weight:600; margin: 0 0 26px; color:var(--ink); }
+
+  .options{ display:flex; flex-direction:column; gap:12px; animation: fadeIn .35s ease both; }
+  .option{
+    display:flex; align-items:center; gap:14px; text-align:left;
+    background:#fff; border:1.5px solid var(--line); border-radius:16px; padding:16px 18px;
+    cursor:pointer; font-family:var(--sans); font-size:14.5px; color:var(--ink); line-height:1.55;
+    transition: border-color .18s ease, background .18s ease;
+  }
+  .option:hover{ border-color: var(--olive); }
+  .option:active{ background: #F1F3EC; }
+  .option.selected{ border-color: var(--forest); background: #F1F3EC; }
+  .option.selected .option-label{ color: var(--forest-deep); font-weight:600; }
+  .option-label{ transition: color .15s ease; }
+  .option-mark{
+    width:22px; height:22px; border-radius:50%; border:1.5px solid var(--line); flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; transition: background .15s ease, border-color .15s ease;
+  }
+  .option.selected .option-mark{ background: var(--forest); border-color: var(--forest); }
+  .option-mark svg{ width:12px; height:12px; opacity:0; transition:opacity .1s ease; }
+  .option.selected .option-mark svg{ opacity:1; }
+
+  /* ================= RESULT ================= */
+  #screen-result{ }
+  .result-hero{ position:relative; background: linear-gradient(180deg, #EFEADB 0%, #E7E2CE 100%); padding:16px 16px 0; overflow:hidden;}
+  .result-hero-inner{ text-align:center; position:relative; z-index:2; }
+  .result-kicker{ font-size:12px; letter-spacing:0.16em; color:var(--olive); font-weight:600; margin-bottom:6px; animation: riseIn .5s ease both; }
+  .result-h0{
+    display:inline-block; font-family:var(--serif); font-size:14.5px; font-weight:600; color:var(--forest-deep);
+    background:#fff; border:1px solid var(--line); border-radius:100px; padding:9px 24px;
+    box-shadow:0 10px 24px -14px rgba(30,51,35,0.25); white-space:nowrap; max-width:92%;
+    margin:0 auto;
+    animation: riseIn .5s ease both .08s;
+  }
+  .result-forest-frame{
+    position:relative; width:100%; max-width:400px; height:124px; margin:-16px auto -6px;
+    animation: riseIn .5s ease both .14s;
+  }
+  #screen-result[data-forest="conifer"] .result-forest-frame{
+    max-width:360px;
+    height:112px;
+    margin:-18px auto -4px;
+  }
+  #screen-result[data-forest="rain"] .result-forest-frame{
+    max-width:340px;
+    height:108px;
+    margin:-12px auto -2px;
+  }
+  .result-frame-art{
+    position:relative; z-index:1; width:100%; height:auto; display:block;
+    visibility:visible; opacity:1; user-select:none; pointer-events:none;
+    transform:translateY(6px) scale(1.03,.66); transform-origin:top center;
+  }
+  .result-h1{
+    position:absolute; left:50%; top:46%; transform:translate(-50%,-50%);
+    width:60%; max-width:60%;
+    font-family:var(--serif); font-weight:700; color:var(--forest-deep);
+    margin:0; letter-spacing:0.02em; white-space:nowrap; text-align:center; line-height:1.08;
+    font-size:clamp(31px, 6.8vw, 36px);
+    z-index:3;
+  }
+  #screen-result[data-forest="conifer"] .result-h1,
+  #screen-result[data-forest="mixed"] .result-h1,
+  #screen-result[data-forest="decid"] .result-h1{
+    top:48%;
+    width:58%; max-width:58%;
+    font-size:clamp(27px, 6vw, 30px);
+  }
+  #screen-result[data-forest="rain"] .result-h1{
+    top:54%;
+    width:64%; max-width:64%;
+    font-size:clamp(29px, 6.1vw, 33px);
+  }
+
+  /* 所有結果頁只保留葉片與枝藤構成的邊框 */
+  .frame-line-cover{
+    display:block;
+    position:absolute;
+    left:25.4%; right:26.2%; top:28%; height:12px;
+    background:#EEE9D9;
+    z-index:2;
+    pointer-events:none;
+  }
+  .frame-line-cover::before,
+  .frame-line-cover::after{
+    content:"";
+    position:absolute;
+    top:-2px;
+    width:10px; height:66px;
+    background:#EEE9D9;
+  }
+  .frame-line-cover::before{ left:0; }
+  .frame-line-cover::after{ right:0; }
+  #screen-result[data-forest="conifer"] .frame-line-cover::before,
+  #screen-result[data-forest="conifer"] .frame-line-cover::after{
+    display:none;
+  }
+  #screen-result[data-forest="conifer"] .frame-line-cover{
+    left:20%; right:20%; top:21%; height:46%;
+    border-radius:8px;
+  }
+  .frame-leaf-patch{ display:none; }
+  #screen-result[data-forest="conifer"] .frame-leaf-patch{
+    display:block;
+    position:absolute;
+    left:76%; top:22%;
+    width:7%; height:42%;
+    background-image:url('images/result_frame.png');
+    background-position:8% 4%;
+    background-size:900% 170%;
+    background-repeat:no-repeat;
+    transform:scaleX(-1);
+    transform-origin:center;
+    z-index:2;
+    pointer-events:none;
+  }
+  #screen-result[data-forest="conifer"] .frame-leaf-patch::after{
+    content:"";
+    position:absolute;
+    left:45%; top:64%;
+    width:8px; height:4px;
+    border-radius:100% 0 100% 0;
+    background:#77765C;
+    box-shadow:5px 3px 0 #8D875F, 2px -5px 0 #6F7357, -4px 4px 0 #948B62;
+    transform:rotate(-28deg);
+    opacity:.9;
+  }
+
+  .result-portrait{ width:88%; max-width:430px; margin:-8px auto 0; display:block; position:relative; z-index:2; opacity:1; visibility:visible; cursor:pointer; }
+  #screen-result[data-forest="conifer"] .result-portrait{
+    max-width:390px;
+    margin:-2px auto 0;
+  }
+  #screen-result[data-forest="rain"] .result-portrait{
+    width:78%;
+    max-width:380px;
+    margin:-8px auto 0;
+  }
+  .result-portrait img{
+    width:100%; height:auto; display:block; margin-left:auto; margin-right:auto;
+    visibility:visible; opacity:1; object-fit:contain; object-position:center center;
+    animation: softFloat 5s ease-in-out infinite; animation-delay: .9s;
+  }
+  .result-portrait img.is-loading{ animation:none; }
+  #screen-result[data-forest="conifer"] .result-portrait img{
+    position:relative;
+    left:0;
+  }
+  .portrait-cta{
+    width:100%; text-align:center; font-size:20px; font-weight:700; color:var(--olive); margin:-8px auto 0;
+    animation: riseIn .5s ease both .3s;
+  }
+  .gift-row{
+    display:flex; align-items:flex-start; justify-content:center; gap:8px; margin:10px auto 0;
+    max-width:480px; animation: riseIn .5s ease both .38s;
+  }
+  .gift-item{ display:flex; flex-direction:column; align-items:center; gap:6px; flex:1; min-width:0; }
+  .gift-photo{
+    width:100%; height:132px; overflow:visible; background:transparent;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .gift-photo img{
+    width:100%; height:100%; object-fit:contain; object-position:center; display:block;
+  }
+  .gift-link{ text-decoration:none; transition:transform .2s ease, filter .2s ease; }
+  .gift-link:hover{ transform:scale(1.04); filter:brightness(1.03); }
+  .gift-link:focus-visible{ outline:2px solid var(--forest); outline-offset:3px; border-radius:8px; }
+  .gift-item span{ font-size:10.5px; font-weight:600; color:var(--forest-deep); text-align:center; line-height:1.35; }
+  .gift-plus{
+    flex-shrink:0; align-self:flex-start; width:24px; height:132px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:28px; line-height:1; font-weight:700; color:var(--gold); margin:0;
+  }
+
+  .result-desc{
+    padding:0 20px 10px; text-align:center; font-size:13.5px; color:var(--ink-soft); line-height:1.75;
+    max-width:540px; margin:16px auto 0; position:relative; z-index:2; animation: riseIn .5s ease both .3s;
+  }
+  #screen-result[data-forest="rain"] .result-desc{
+    margin-top:11px;
+    padding-bottom:8px;
+  }
+
+  /* 編輯感結果主視覺：深綠文字卡與圓形森林人像交疊 */
+  .result-hero{
+    padding:38px 28px 30px;
+    background:#F7F2E9;
+  }
+  .result-hero-inner{
+    width:100%; max-width:640px; margin:0 auto; padding:0 8px;
+    text-align:left;
+  }
+  body.result-mode .top-bar{ display:none; }
+  .result-page-logo{
+    display:block; width:118px; height:48px; object-fit:contain;
+    margin:0 auto 30px;
+  }
+  .result-kicker{
+    margin:0; color:#3B4439; letter-spacing:.025em;
+    font-family:'GenYoMin1501', serif;
+    font-size:clamp(38px, 7vw, 50px); line-height:1.22; font-weight:700;
+  }
+  .result-h0{
+    display:block; max-width:none; margin:12px 0 0; padding:0;
+    color:#123D2D; background:transparent; border:0; border-radius:0; box-shadow:none;
+    font-family:'GenYoGothic1501', sans-serif; font-weight:500;
+    font-size:clamp(20px, 3.8vw, 27px); line-height:1.45; white-space:normal;
+  }
+  .result-story-grid{
+    position:relative; width:100%; max-width:640px; min-height:0;
+    margin:25px auto 0; display:grid;
+    grid-template-columns:minmax(0, 55fr) minmax(0, 45fr);
+    gap:0; align-items:center;
+  }
+  .result-copy-panel{
+    width:100%; min-height:320px; padding:52px 34px 46px 38px;
+    display:flex; flex-direction:column; justify-content:center;
+    background-color:#294738;
+    background-image:linear-gradient(135deg, rgba(255,255,255,.025), rgba(0,0,0,.07));
+    color:#F2E1D0;
+    box-shadow:none;
+    position:relative; z-index:1;
+  }
+  #screen-result[data-forest] .result-copy-panel .result-h1{
+    position:static; width:auto; max-width:none; margin:0;
+    transform:none; color:#E7CDB7; text-align:left; white-space:normal;
+    font-family:'GenYoMin1501', serif; font-size:clamp(34px, 5.8vw, 45px); line-height:1.2;
+    letter-spacing:.02em;
+  }
+  #screen-result[data-forest] .result-copy-panel .result-desc{
+    max-width:none; margin:20px 0 0; padding:0;
+    color:#F2DFCF; text-align:left; font-family:'GenYoGothic1501', sans-serif;
+    font-size:16px; line-height:1.85;
+    position:static;
+  }
+  #screen-result[data-forest] .result-portrait{
+    position:relative; z-index:3; top:auto; right:auto;
+    width:100%; max-width:none; aspect-ratio:1; margin:0;
+    transform:none; border-radius:50%; overflow:hidden;
+    border:2px solid rgba(129,94,69,.68);
+    background:#D9D1C0;
+    box-shadow:0 18px 38px -28px rgba(45,34,25,.68);
+  }
+  #screen-result[data-forest] .result-portrait img{
+    position:static; left:auto; width:100%; height:100%; margin:0;
+    object-fit:cover; object-position:center center; animation:none;
+  }
+  .portrait-cta{
+    display:table; width:auto; margin:28px auto 0; padding:12px 36px;
+    border-radius:999px; background:#603C2B; color:#EEDAC7;
+    box-shadow:0 10px 22px -14px rgba(61,35,23,.75);
+    font-size:18px; line-height:1.2;
+  }
+  .gift-row{ max-width:590px; gap:10px; margin-top:20px; }
+  .prize-section{ width:100%; }
+  .gift-photo{
+    width:100%; height:auto; aspect-ratio:1; padding:13px;
+    overflow:hidden; border-radius:50%; background:#EEE7DC;
+  }
+  .gift-photo img{ width:100%; height:100%; object-fit:contain; }
+  .gift-plus{ height:auto; aspect-ratio:1; min-height:100px; color:#9A7658; }
+  .gift-item span{ margin-top:2px; font-size:13px; line-height:1.45; }
+
+  @media (max-width:520px){
+    .result-hero{ padding:24px 16px 24px; }
+    .result-hero-inner{ padding:0 4px; text-align:center; }
+    .result-page-logo{ width:104px; height:42px; margin-bottom:22px; }
+    .result-kicker{ font-size:34px; }
+    .result-h0{ margin-top:10px; text-align:center; font-size:18px; }
+    .result-story-grid{
+      display:grid; grid-template-columns:1fr; gap:18px;
+      min-height:0; margin-top:18px; padding-top:0;
+    }
+    .result-copy-panel{
+      width:100%; min-height:0; padding:38px 26px 34px;
+      text-align:center;
+    }
+    #screen-result[data-forest] .result-copy-panel .result-h1,
+    #screen-result[data-forest] .result-copy-panel .result-desc{ text-align:center; }
+    #screen-result[data-forest] .result-copy-panel .result-h1{ font-size:32px; }
+    #screen-result[data-forest] .result-copy-panel .result-desc{ margin-top:15px; font-size:16px; line-height:1.75; }
+    #screen-result[data-forest] .result-portrait{
+      top:auto; right:auto; left:auto; width:min(78vw, 300px);
+      margin:0 auto; transform:none;
+    }
+    .portrait-cta{ margin-top:24px; padding:11px 30px; font-size:17px; }
+    .gift-row{ gap:4px; margin-top:18px; }
+    .gift-photo{ padding:8px; }
+    .gift-plus{ width:18px; min-height:82px; font-size:25px; }
+    .gift-item span{ font-size:11.5px; }
+  }
+
+  /* 結果頁卡面：直接使用各森林去字底圖，文字與好禮依參考圖固定疊放 */
+  #screen-result .result-hero{
+    width:min(100%, 720px); max-width:720px; aspect-ratio:4 / 5; margin:0 auto; padding:0;
+    position:relative; overflow:hidden; background-color:#F5F0E7; background-position:center;
+    background-repeat:no-repeat; background-size:cover;
+  }
+  #screen-result .result-hero > .leaf-particles,
+  #screen-result .result-page-logo,
+  #screen-result .result-kicker,
+  #screen-result .result-copy-panel{ display:none !important; }
+  #screen-result .result-hero-inner{
+    position:absolute; z-index:8; left:3%; top:22%; width:51%; max-width:none;
+    margin:0; padding:0; text-align:left;
+  }
+  #screen-result[data-forest="rain"] .result-hero-inner{ left:3.84%; top:26.5%; }
+  #screen-result[data-forest="conifer"] .result-hero-inner{ left:3.33%; top:21.8%; }
+  #screen-result[data-forest="mixed"] .result-hero-inner{ left:2.77%; top:22.1%; }
+  #screen-result[data-forest="decid"] .result-hero-inner{ left:3.01%; top:24.1%; }
+  #screen-result[data-forest="fog"] .result-hero-inner{ left:2.58%; top:21.4%; }
+  #screen-result .result-kicker{
+    position:relative; left:-2%; margin:0; color:#354035; font-family:'GenYoMin1501', serif;
+    font-size:clamp(24px, 5.4vw, 43px); line-height:1.18; letter-spacing:.005em; white-space:nowrap;
+  }
+  #screen-result .result-h0{
+    position:static; left:auto; display:block; margin:0; padding:0; color:#143B2D; font-family:'GenYoGothic1501', sans-serif;
+    font-size:clamp(11px, 2.3vw, 18px); line-height:1.4; text-align:left !important; white-space:normal;
+  }
+  #screen-result .result-story-grid{
+    position:absolute; z-index:4; inset:0; width:100%; max-width:none; min-height:0;
+    margin:0; padding:0; display:block;
+  }
+  #screen-result .result-copy-panel{
+    position:absolute; z-index:5; left:0; top:27.8%; width:54%; height:32.2%; min-height:0;
+    margin:0; padding:0 4.5%; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    box-sizing:border-box; background:transparent; box-shadow:none; text-align:center;
+  }
+  #screen-result[data-forest] .result-copy-panel .result-h1{
+    position:static; width:100%; max-width:none; margin:0 auto; transform:none; color:#E8CFBA;
+    text-align:center !important; white-space:nowrap; font-family:'GenYoMin1501', serif;
+    font-size:clamp(23px, 5.25vw, 42px); line-height:1.16; letter-spacing:.015em;
+  }
+  #screen-result[data-forest] .result-copy-panel .result-desc{
+    position:static; width:100%; max-width:none; margin:7% auto 0; padding:0; color:#F2DFCF;
+    text-align:center !important; font-family:'GenYoGothic1501', sans-serif;
+    font-size:clamp(9px, 2.3vw, 16px); line-height:1.95; text-wrap:balance;
+  }
+  #screen-result[data-forest] .result-portrait{
+    position:absolute; z-index:6; top:19.2%; right:1.5%; left:auto; width:51.5%; height:51%;
+    max-width:none; margin:0; transform:none; border:0; border-radius:50%; overflow:visible;
+    background:transparent; box-shadow:none;
+  }
+  #screen-result[data-forest] .result-portrait img{ display:none; }
+  #screen-result .prize-section{
+    position:absolute; z-index:7; inset:0; width:100%; pointer-events:none;
+  }
+  #screen-result .portrait-cta{
+    position:absolute; left:32%; top:86.2%; transform:none; translate:none; display:block;
+    width:36%; margin:0; padding:1.05% 2%; border-radius:999px; background:#603C2B;
+    color:#EEDAC7; box-shadow:0 7px 16px -10px rgba(61,35,23,.9);
+    font-size:clamp(11px, 2.2vw, 17px); line-height:1.2; white-space:nowrap;
+  }
+  #screen-result .gift-row{
+    position:absolute; left:5.5%; top:62.6%; width:89%; max-width:none; margin:0;
+    display:flex; align-items:flex-start; justify-content:center; gap:1.1%; pointer-events:auto;
+  }
+  #screen-result .gift-item{ flex:0 0 24%; gap:3px; min-width:0; }
+  #screen-result .gift-photo{
+    width:100%; height:auto; aspect-ratio:1; padding:8%; overflow:hidden; border-radius:50%;
+    background:transparent;
+  }
+  #screen-result .gift-photo img{ width:100%; height:100%; object-fit:contain; object-position:center; }
+  #screen-result .gift-item:first-child .gift-photo img{ transform:scale(1.22); transform-origin:center; }
+  #screen-result .gift-credit-pair{
+    gap:5%; padding:8% 1%; overflow:visible;
+  }
+  #screen-result .credit-card{
+    position:relative; flex:1 1 0; max-width:47%; height:84%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3%;
+    border:1px solid #78907D; border-radius:3px; background:#FBFAF3;
+    color:#284B35; box-shadow:0 3px 8px rgba(43,58,46,.12);
+  }
+  #screen-result .credit-card::after{
+    content:''; position:absolute; inset:5%; border:1px solid rgba(120,144,125,.48); border-radius:2px;
+    pointer-events:none;
+  }
+  #screen-result .credit-card strong{
+    position:relative; z-index:1; font-family:'GenYoGothic1501', sans-serif;
+    font-size:clamp(9px, 2.1vw, 16px); line-height:1; white-space:nowrap;
+  }
+  #screen-result .credit-card small{
+    position:relative; z-index:1; font-family:'GenYoGothic1501', sans-serif;
+    font-size:clamp(5px, .95vw, 8px); line-height:1.2; white-space:nowrap;
+  }
+  #screen-result .gift-plus{
+    flex:0 0 5%; width:auto; height:auto; aspect-ratio:auto; min-height:0; margin-top:11%;
+    color:#9A7658; font-size:clamp(18px, 4vw, 32px);
+  }
+  #screen-result .gift-item span{
+    margin-top:-6%; color:#243A2E; font-size:clamp(8px, 1.95vw, 15px); line-height:1.32;
+  }
+  /* 各森林底圖的人像與枝葉高度不同，分別保留適合的文字與好禮間距 */
+  #screen-result[data-forest="rain"] .gift-row{
+    top:63.4%;
+  }
+  #screen-result[data-forest="conifer"] .gift-row,
+  #screen-result[data-forest="fog"] .gift-row{
+    top:64.2%;
+  }
+  #screen-result[data-forest="mixed"] .gift-row{
+    left:7%; top:65.2%; width:86%;
+  }
+  #screen-result[data-forest="decid"] .result-copy-panel{
+    top:27.8%; height:32.2%;
+  }
+  #screen-result[data-forest="decid"] .gift-row{
+    left:7.5%; top:65.2%; width:85%;
+  }
+  #screen-result[data-forest="mixed"] .portrait-cta,
+  #screen-result[data-forest="decid"] .portrait-cta{
+    top:87%;
+  }
+  @media (max-width:520px){
+    #screen-result .result-hero{ padding:0; }
+    #screen-result .result-hero-inner{ padding:0; text-align:left; }
+    #screen-result .result-kicker{ font-size:clamp(22px, 5.4vw, 30px); }
+    #screen-result .result-h0{ margin-top:0; text-align:left !important; font-size:clamp(10px, 2.3vw, 13px); }
+    #screen-result .result-story-grid{ display:block; margin:0; padding:0; }
+    #screen-result .result-copy-panel{ left:0; width:54%; padding:0 4.5%; text-align:center; }
+    #screen-result[data-forest] .result-copy-panel .result-h1{ text-align:center; font-size:clamp(20px, 5.25vw, 27px); }
+    #screen-result[data-forest] .result-copy-panel .result-desc{ margin-top:7%; text-align:center; font-size:clamp(9px, 2.3vw, 12px); line-height:1.95; }
+    #screen-result[data-forest] .result-portrait{ top:19.2%; right:1.5%; left:auto; width:51.5%; height:51%; margin:0; }
+    #screen-result .portrait-cta{ margin:0; padding:1.05% 2%; font-size:clamp(10px, 2.2vw, 12px); }
+    #screen-result .gift-row{ gap:1.1%; margin:0; }
+    #screen-result .gift-photo{ padding:7%; }
+    #screen-result .gift-plus{ width:auto; min-height:0; margin-top:11%; font-size:clamp(17px, 4vw, 22px); }
+    #screen-result .gift-item span{ font-size:clamp(7px, 1.95vw, 10px); }
+  }
+
+  .section-block{ padding:6px 24px 22px; }
+  .section-label{
+    display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700; letter-spacing:0.08em;
+    background:var(--forest); color:#fff; padding:8px 16px; border-radius:100px; margin-bottom:12px;
+  }
+  .section-label svg{ width:14px; height:14px; }
+
+  .analysis-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .analysis-card{ background:#fff; border:1px solid var(--line); border-radius:16px; padding:14px 13px; animation: riseIn .5s cubic-bezier(.2,.7,.3,1) both; transition: transform .2s ease, box-shadow .2s ease; }
+  .analysis-card:hover{ transform: translateY(-3px); box-shadow: 0 14px 26px -18px rgba(43,43,34,0.4); }
+  .analysis-card:nth-child(1){ animation-delay: .05s; }
+  .analysis-card:nth-child(2){ animation-delay: .12s; }
+  .analysis-card:nth-child(3){ animation-delay: .19s; }
+  .analysis-card:nth-child(4){ animation-delay: .26s; }
+  .analysis-icon{ width:30px; height:30px; margin-bottom:10px; color: var(--forest); }
+  .analysis-icon svg{ width:100%; height:100%; }
+  .analysis-title{ font-size:13.5px; font-weight:700; margin-bottom:6px; color:var(--ink); }
+  .analysis-copy{ font-size:11.8px; color:var(--ink-soft); line-height:1.65; }
+
+  .products-list{ display:flex; flex-direction:column; gap:0; }
+  .product-plus{
+    align-self:center; width:28px; height:28px; border-radius:50%; background:var(--cream);
+    border:1px solid var(--line); color:var(--olive); font-size:15px; font-weight:700;
+    display:flex; align-items:center; justify-content:center; margin: 6px 0;
+  }
+
+  .featured-card{
+    display:block; text-decoration:none; color:inherit; position:relative;
+    background: linear-gradient(155deg, #2F4A34 0%, #1E3323 100%);
+    border-radius:20px; padding:18px 18px 16px; margin-bottom:12px;
+    box-shadow: 0 18px 40px -22px rgba(30,51,35,0.55);
+    animation: riseIn .55s cubic-bezier(.2,.7,.3,1) both;
+    transition: transform .2s ease, box-shadow .2s ease;
+    overflow:hidden;
+  }
+  .featured-card::before{
+    content:''; position:absolute; top:-40%; right:-20%; width:70%; height:180%;
+    background: radial-gradient(circle, rgba(201,166,107,0.25) 0%, rgba(201,166,107,0) 70%);
+    pointer-events:none;
+  }
+  .featured-card:hover{ transform: translateY(-3px); box-shadow: 0 22px 46px -20px rgba(30,51,35,0.65); }
+  .featured-badge{
+    display:inline-flex; font-size:10.5px; font-weight:700; letter-spacing:0.06em; color: var(--forest-deep);
+    background: var(--gold); padding:5px 12px; border-radius:100px; margin-bottom:14px; position:relative; z-index:1;
+  }
+  .featured-inner{ display:flex; align-items:flex-start; gap:14px; position:relative; z-index:1; }
+  .featured-icon{
+    width:44px; height:44px; border-radius:12px; background: rgba(255,255,255,0.12); flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; color:#EFEADB;
+  }
+  .featured-icon svg{ width:22px; height:22px; }
+  .featured-icon.has-photo{ background:#fff; }
+  .featured-icon.has-photo img{ width:100%; height:100%; object-fit:contain; border-radius:50%; padding:3px; box-sizing:border-box; }
+  .featured-body{ flex:1; min-width:0; }
+  .featured-name{ font-family:var(--serif); font-size:17px; font-weight:700; color:#fff; margin-bottom:3px; }
+  .featured-tagline{ font-size:11.5px; color: var(--gold); font-weight:600; margin-bottom:8px; letter-spacing:0.03em; }
+  .featured-desc{ font-size:12px; color:#D8D6C6; line-height:1.7; }
+  .featured-arrow{
+    width:28px; height:28px; border-radius:50%; background: rgba(255,255,255,0.12); color:#fff; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; transition: background .2s ease, transform .2s ease;
+  }
+  .featured-arrow svg{ width:15px; height:15px; }
+  .featured-card:hover .featured-arrow{ background: var(--gold); color: var(--forest-deep); transform: translateX(2px); }
+
+  .product-card{
+    display:flex; gap:14px; align-items:center; background:#fff; border:1px solid var(--line); border-radius:16px; padding:14px 16px;
+    animation: riseIn .5s cubic-bezier(.2,.7,.3,1) both; transition: transform .2s ease, box-shadow .2s ease;
+    text-decoration:none; color:inherit;
+  }
+  .product-card:hover{ transform: translateY(-3px); box-shadow: 0 14px 26px -18px rgba(43,43,34,0.4); border-color: var(--olive); }
+  .product-card:nth-child(1){ animation-delay: .05s; }
+  .product-card:nth-child(2){ animation-delay: .14s; }
+  .product-card:nth-child(3){ animation-delay: .23s; }
+  .product-body{ flex:1; min-width:0; }
+  .product-arrow{ width:26px; height:26px; border-radius:50%; background:var(--cream-deep); color:var(--forest); display:flex; align-items:center; justify-content:center; flex-shrink:0; transition: background .2s ease, transform .2s ease; }
+  .product-arrow svg{ width:14px; height:14px; }
+  .product-card:hover .product-arrow{ background: var(--forest); color:#fff; transform: translateX(2px); }
+  .product-icon{
+    width:52px; height:52px; border-radius:12px; flex-shrink:0; background: var(--cream-deep);
+    display:flex; align-items:center; justify-content:center; color:var(--forest);
+  }
+  .product-icon svg{ width:26px; height:26px; }
+  .product-icon.has-photo{ background:#fff; border:1px solid var(--line); }
+  .product-icon.has-photo img{
+    width:100%; height:100%; object-fit:contain; object-position:center; display:block;
+    border-radius:10px; padding:4px; box-sizing:border-box;
+  }
+  .product-icon.has-photo img[src*="product_zeroc_spray_cutout"]{
+    padding:0; transform:scale(1.08); transform-origin:center;
+  }
+  .product-tag{ font-size:10.5px; color:var(--olive); font-weight:700; letter-spacing:0.04em; margin-bottom:3px; }
+  .product-name{ font-size:14px; font-weight:700; color:var(--ink); margin-bottom:3px; }
+  .product-desc{ font-size:11.5px; color:var(--ink-soft); line-height:1.5; }
+
+  .night-care-card{ margin-top:12px; }
+  .night-care-label{
+    display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:var(--olive);
+    letter-spacing:0.04em; margin-bottom:10px;
+  }
+  .night-care-inner{
+    display:flex; align-items:center; gap:12px; background: linear-gradient(135deg, #2F4A34 0%, #1E3323 100%);
+    border-radius:16px; padding:16px; text-decoration:none;
+  }
+  .night-care-icon{
+    flex-shrink:0; width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,0.14);
+    display:flex; align-items:center; justify-content:center; color:var(--gold);
+  }
+  .night-care-icon svg{ width:22px; height:22px; }
+  .night-care-icon.has-photo{ background:#fff; }
+  .night-care-icon.has-photo img{ width:100%; height:100%; object-fit:contain; border-radius:50%; padding:4px; box-sizing:border-box; }
+  .night-care-body{ flex:1; min-width:0; }
+  .night-care-name{ font-size:13.5px; font-weight:700; color:#fff; margin-bottom:3px; }
+  .night-care-desc{ font-size:11px; color:rgba(255,255,255,0.75); line-height:1.5; }
+  .night-care-arrow{ flex-shrink:0; color:var(--gold); }
+  .night-care-arrow svg{ width:16px; height:16px; }
+
+  .share-block{
+    position:relative; margin:-60px 0 0; padding:18px 24px 14px; text-align:center;
+    background:linear-gradient(180deg, var(--result-edge, #F5F0E7) 0%, #F6EFE8 34%, var(--cream) 100%);
+  }
+  .share-block::before{
+    content:""; position:absolute; left:0; right:0; top:-28px; height:30px;
+    background:linear-gradient(180deg, transparent 0%, var(--result-edge, #F5F0E7) 100%);
+    pointer-events:none;
+  }
+  .share-title{ font-family:var(--serif); font-size:17px; font-weight:600; margin-bottom:3px; }
+  .share-sub{ font-size:11.5px; color:var(--ink-soft); margin-bottom:12px; }
+  .share-icons{ display:flex; justify-content:center; gap:16px; margin-bottom:0; }
+  .share-icon-wrap{ min-width:52px; display:flex; flex-direction:column; align-items:center; gap:5px; cursor:pointer; }
+  .share-circle{ width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; }
+  .share-icon-wrap span{ font-size:10.5px; color:var(--ink-soft); }
+  .download-result-btn{
+    width:min(100%,210px); min-height:38px; padding:8px 15px; margin:0 auto; border-radius:999px;
+    border:1px solid var(--forest); background:#fff; color:var(--forest-deep);
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    font:600 13px/1 var(--sans); cursor:pointer;
+    box-shadow:0 8px 18px -14px rgba(30,51,35,.45);
+  }
+  #screen-result .share-block + .section-block{ padding-top:4px !important; }
+  .download-result-btn:disabled{ opacity:.58; cursor:wait; }
+  .download-result-btn svg{ width:16px; height:16px; }
+  .result-image-preview{
+    position:fixed; inset:0; z-index:120; padding:22px;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(20,36,25,.78); backdrop-filter:blur(4px);
+  }
+  .result-image-preview[hidden]{ display:none; }
+  .result-image-preview-card{
+    width:min(92vw,430px); max-height:92vh; overflow:auto; padding:14px;
+    border-radius:18px; background:#F7F4EA; box-shadow:0 22px 60px rgba(0,0,0,.28);
+  }
+  .result-image-preview-card img{ width:100%; height:auto; display:block; border-radius:12px; }
+  .result-image-preview-actions{ display:flex; gap:10px; margin-top:12px; }
+  .result-image-preview-actions button,
+  .result-image-preview-actions a{
+    flex:1; min-height:44px; border-radius:999px; display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--forest); font:600 13px/1 var(--sans); text-decoration:none; cursor:pointer;
+  }
+  .result-image-preview-actions button{ background:#fff; color:var(--forest-deep); }
+  .result-image-preview-actions .save-result-image-btn{ background:var(--forest); color:#fff; }
+  .result-image-preview-tip{ margin:10px 4px 0; color:var(--ink-soft); font-size:11px; line-height:1.5; }
+
+  .restart-block{ padding:0 24px 32px; }
+
+  footer.foot{ text-align:center; padding:14px 24px 24px; font-size:10.5px; color:var(--ink-soft); opacity:0.7; letter-spacing:0.04em;}
+
+  @media (max-width:400px){
+    .quiz-top{ gap:20px; }
+    .hero-copy h1{ font-size:32px; }
+    .analysis-grid{ grid-template-columns:1fr 1fr; gap:10px; }
+    .share-block{ margin-top:-34px; padding:16px 12px 12px; }
+    .share-icons{ gap:8px; }
+    .share-icon-wrap{ min-width:50px; }
+    .share-circle{ width:40px; height:40px; }
+  }
+
+  /* ================= TOP BRAND BAR ================= */
+  .top-bar{
+    display:flex; align-items:center;
+    min-height:64px; padding:10px 22px;
+    background:#fff;
+    border-bottom:1px solid #E4E5DE;
+    position:relative; z-index:5;
+  }
+  .top-bar .brand-lockup{
+    display:flex; align-items:center; gap:0;
+    font-family: var(--serif);
+    color: var(--forest-deep);
+    white-space:nowrap;
+    overflow:hidden;
+  }
+  .top-bar .brand-logo{
+    width:88px; height:30px; object-fit:contain; object-position:left center; display:block;
+  }
+  .top-bar .brand-name{
+    font-size:13px; font-weight:500; letter-spacing:0.18em; color:#73786F;
+    margin-left:14px; padding-left:16px; border-left:1px solid #D9DDD5;
+  }
+  @media (max-width:360px){
+    .top-bar{ min-height:58px; padding:9px 16px; }
+    .top-bar .brand-name{ letter-spacing:0.13em; font-size:11.5px; margin-left:10px; padding-left:11px; }
+    .top-bar .brand-logo{ width:78px; height:27px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ TOP BRAND BAR ============ -->
+  <header class="top-bar">
+    <div class="brand-lockup">
+      <img class="brand-logo" src="images/oright-logo.png" alt="O'right 歐萊德">
+      <span class="brand-name">歐萊德頭皮森林</span>
+    </div>
+  </header>
+
+  <!-- ============ INTRO SCREEN ============ -->
+  <section class="screen active" id="screen-intro">
+    <div class="hero-media">
+      <img src="images/hero.jpg" alt="森林人格測驗主視覺">
+      <div class="leaf-particles" id="leafParticles"></div>
+      <div class="hero-copy">
+        <span class="eyebrow-pill">O'right 森林人格測驗</span>
+        <h1>你的頭皮，<br>是哪一種森林？</h1>
+        <p>跟著小歐精靈走一趟森林探險，找出屬於你的森林，看懂頭皮真正需要的呵護方式。</p>
+      </div>
+    </div>
+    <div class="intro-below">
+      <p class="intro-lead">每一種森林，都有自己適應環境的方式；每一種頭皮，也有屬於自己的平衡邏輯。跟著小歐精靈一起走進森林，回答路上遇到的小抉擇，讓我們陪你找到答案。</p>
+      <div class="mascot-intro-card">
+        <div class="mascot-icon" id="mascotIconIntro"></div>
+        <div class="mascot-intro-text">
+          <div class="mascot-intro-name">小歐精靈</div>
+          <div class="mascot-intro-line">「嗨，我是森林的守護精靈，準備好探險了嗎？」</div>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="showScreen('screen-nickname'); document.getElementById('nicknameInput').focus();">
+        開始測驗
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ NICKNAME SCREEN ============ -->
+  <section class="screen" id="screen-nickname">
+    <div class="nickname-top">
+      <div class="quiz-back" onclick="showScreen('screen-intro')">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M15 18l-6-6 6-6" stroke="#2F4A34" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+    <div class="nickname-body">
+      <div class="mascot-icon" id="mascotIconNickname" style="width:52px;height:52px;margin:0 auto 18px;"></div>
+      <h2 class="nickname-title">出發前，先告訴小歐精靈<br>怎麼稱呼你？</h2>
+      <div class="nickname-field">
+        <input type="text" id="nicknameInput" maxlength="6" placeholder="請輸入暱稱（最多六個字）" oninput="this.value=this.value.slice(0,6)" onkeypress="if(event.key==='Enter'){submitNickname();}">
+      </div>
+      <button class="btn-primary" onclick="submitNickname()">
+        開始探險
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ QUIZ SCREEN ============ -->
+  <section class="screen" id="screen-quiz">
+    <div class="leaf-particles" id="leafParticlesQuiz"></div>
+    <div class="quiz-top">
+      <div class="quiz-back" onclick="prevQuestion()">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M15 18l-6-6 6-6" stroke="#2F4A34" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="journey-wrap">
+        <div class="journey-track" id="journeyTrack"></div>
+        <div class="journey-label" id="progressText">第 1 站／共 5 站</div>
+      </div>
+    </div>
+    <div class="q-scene-tag" id="qSceneTag"></div>
+    <div class="q-mascot-line">
+      <div class="mascot-icon" id="mascotIconQuiz"></div>
+      <span id="mascotSpeech"></span>
+    </div>
+    <h2 class="q-title" id="qTitle"></h2>
+    <div class="options" id="qOptions"></div>
+  </section>
+
+  <!-- ============ RESULT SCREEN ============ -->
+  <section class="screen" id="screen-result">
+    <div class="result-hero quiz-result-container">
+      <div class="leaf-particles" id="leafParticlesResult"></div>
+      <header class="result-hero-inner header">
+        <img src="images/oright-logo.png" alt="O'right" class="result-page-logo">
+        <h1 class="result-kicker">森林人格測驗結果</h1>
+        <p class="result-h0" id="resGreeting">你的森林角色</p>
+      </header>
+      <section class="result-story-grid character-card">
+        <div class="result-copy-panel text-box">
+          <h1 class="result-h1" id="resName">熱帶雨林</h1>
+          <p class="result-desc" id="resDesc"></p>
+        </div>
+        <a class="result-portrait image-box" href="https://page.line.me/yhz1055p" target="_blank" rel="noopener">
+          <img id="resImg" alt="森林角色插畫" loading="lazy" decoding="async">
+        </a>
+      </section>
+      <section class="prize-section">
+      <p class="portrait-cta cta-badge">點擊圖片領好禮</p>
+      <div class="gift-row prize-grid">
+        <div class="gift-item">
+          <a class="gift-photo gift-link" href="https://page.line.me/yhz1055p" target="_blank" rel="noopener" aria-label="前往 O'right 官方 LINE 領取 AI 智能頭皮檢測好禮"><img src="images/gift_ai_checkup_nocable.webp?v=20260903" alt="AI 智能頭皮檢測" loading="lazy" decoding="async"></a>
+          <span>AI 智能頭皮檢測</span>
+        </div>
+        <div class="gift-plus">+</div>
+        <div class="gift-item">
+          <a class="gift-photo gift-link" href="https://page.line.me/yhz1055p" target="_blank" rel="noopener" aria-label="前往 O'right 官方 LINE 領取體驗包"><img src="images/gift_wildrose_cutout.webp?v=20260903" alt="體驗包" loading="lazy" decoding="async"></a>
+          <span>體驗包</span>
+        </div>
+        <div class="gift-plus">+</div>
+        <div class="gift-item">
+          <a class="gift-photo gift-link gift-credit-pair" href="https://page.line.me/yhz1055p" target="_blank" rel="noopener" aria-label="前往 O'right 官方 LINE 領取線上與線下體驗金各二百元">
+            <div class="credit-card"><strong>200元</strong><small>線上體驗金</small></div>
+            <div class="credit-card"><strong>200元</strong><small>線下體驗金</small></div>
+          </a>
+          <span>體驗金四百元</span>
+        </div>
+      </div>
+      </section>
+    </div>
+
+    <div class="share-block">
+      <div class="share-title">分享你的森林結果</div>
+      <div class="share-sub">邀請朋友一起測驗，找到屬於自己的森林角色！</div>
+      <div class="share-icons">
+        <div class="share-icon-wrap" onclick="shareResult('line')">
+          <div class="share-circle" style="background:#06C755;">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="#fff"><path d="M12 2C6.48 2 2 5.94 2 10.7c0 4.06 3.27 7.46 7.74 8.22-.11.65-.36 2.03-.41 2.34 0 0-.01.36.19.5.2.14.44.06.44.06.29-.04 3.34-2.19 4.7-3.13.42.06.85.09 1.34.09 5.52 0 10-3.94 10-8.7C22.02 5.94 17.52 2 12 2z"/></svg>
+          </div><span>LINE</span>
+        </div>
+        <div class="share-icon-wrap" onclick="shareResult('ig')">
+          <div class="share-circle" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg>
+          </div><span>Instagram</span>
+        </div>
+        <div class="share-icon-wrap" onclick="shareResult('fb')">
+          <div class="share-circle" style="background:#1877F2;">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff"><path d="M13.5 21v-7.5h2.5l.5-3h-3V8.5c0-.9.25-1.5 1.55-1.5H16.5V4.35C16.2 4.3 15.2 4.2 14 4.2c-2.4 0-4 1.45-4 4.1V10.5H7.5v3H10V21h3.5z"/></svg>
+          </div><span>Facebook</span>
+        </div>
+        <div class="share-icon-wrap" onclick="shareResult('copy')">
+          <div class="share-circle" style="background:var(--forest);">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="1.8"><path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1.5-1.5"/></svg>
+          </div><span id="copyLabel">複製連結</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-block" style="padding-top:12px;">
+      <span class="section-label">
+        頭皮狀態解析
+      </span>
+      <div class="analysis-grid" id="resAnalysis"></div>
+    </div>
+
+    <div class="section-block">
+      <span class="section-label">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#fff" stroke-width="1.6"/></svg>
+        對應產品建議
+      </span>
+
+      <a class="featured-card" href="https://shop.oright.com.tw/product/477" target="_blank" rel="noopener">
+        <div class="featured-badge">本季主打・適用各種頭皮</div>
+        <div class="featured-inner">
+          <div class="featured-icon has-photo">
+            <img src="images/featured_caffeine_melanin_tonic.png" alt="咖啡因麥拉寧養髮液50mL">
+          </div>
+          <div class="featured-body">
+            <div class="featured-name">咖啡因麥拉寧養髮液50mL</div>
+            <div class="featured-tagline">一根頭髮看見黑科技</div>
+            <div class="featured-desc">天然咖啡因強健髮根，獨家椰棗萃取富含麥拉寧，高效抵禦老化因子，養髮同時重現本色之美。不分頭皮屬性，都適合日常養護使用。</div>
+          </div>
+          <div class="featured-arrow">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+      </a>
+
+      <div class="products-list" id="resProducts"></div>
+
+      <div class="night-care-card" id="resNightCare">
+        <div class="night-care-label">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z"/></svg>
+          同場加映・夜間加強保養
+        </div>
+        <a class="night-care-inner" id="resNightCareLink" href="#" target="_blank" rel="noopener">
+          <div class="night-care-icon" id="resNightCareIcon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 2h6M10 2v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V2"/><circle cx="12" cy="15" r="2"/></svg>
+          </div>
+          <div class="night-care-body">
+            <div class="night-care-name" id="resNightCareName"></div>
+            <div class="night-care-desc" id="resNightCareDesc"></div>
+          </div>
+          <div class="night-care-arrow">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </a>
+      </div>
+    </div>
+
+    <div class="restart-block">
+      <button class="btn-ghost" onclick="restartQuiz()">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none"><path d="M4 4v6h6M20 20v-6h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 14a8 8 0 0014.9 2.5M19 10A8 8 0 004.1 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        重新測驗
+      </button>
+    </div>
+    <footer class="foot">O'right 歐萊德・森林人格測驗</footer>
+  </section>
+
+</div>
+
+<script>
+/* ============ DATA：5 種森林結果內容（含描述、分析、對應產品） ============ */
+const FOREST_TYPES = {
+  rain: {
+    name: '熱帶雨林', sub: '油頭型', tag: '油脂旺盛，髮型容易扁塌', img: 'images/forest_rain_clean.png?v=20260901c', scene: 'images/forest_scene_rain.png', resultTemplate: 'images/result_baked_rain.png?v=20260921',
+    desc: '你就像一座充滿生命力的熱帶雨林，能量旺盛，適應力強，但也容易因過度滋養而繁茂失衡。',
+    quote: '先別急著出門，讓頭皮也有喘息的空間。',
+    analysis: [
+      ['油脂分泌旺盛','頭皮油脂分泌較多，容易出油、扁塌。','drop'],
+      ['毛孔容易阻塞','油脂與老廢角質堆積，影響頭皮清爽度。','pore'],
+      ['悶熱不適感','潮濕環境下，頭皮容易感到悶熱。','wave'],
+      ['需加強平衡','建議調理油水平衡，維持頭皮健康狀態。','leaf'],
+    ],
+    knowledge: [
+      '頭皮與臉部肌膚相連，出油量是臉部的 2 倍以上！',
+      '油脂過多會影響髮根健康，導致扁塌、異味與頭皮不適。',
+      '選擇溫和淨化成分，幫助去除多餘油脂與髒污，維持清爽。',
+      '定期深層清潔頭皮，搭配保濕與舒緩，維持頭皮微生態平衡。',
+    ],
+    products: [
+      ['淨化清爽','茶樹洗髮精400mL','健康舒爽淨化，深層潔淨頭皮多餘油脂，維持頭皮清爽。','drop','https://shop.oright.com.tw/product/188','teatree_shampoo'],
+      ['抗菌調理','茶樹抗菌頭皮噴霧50mL','健康舒爽淨化，隨時調理頭皮油脂與悶熱不適感。','flask','https://shop.oright.com.tw/product/197','teatree_spray'],
+      ['輕盈保濕','竹萃保濕護髮素250mL','水潤保濕不厚重，秀髮柔順不扁塌，兼顧頭皮清爽。','leaf','https://shop.oright.com.tw/product/292','bamboo_conditioner'],
+    ],
+    nightCare: ['四胜肽賦活養髮液 (男士)90ml','專為油脂偏多、清爽需求型頭皮設計，維持頭皮清爽與舒適狀態，草本柑橘香調。','https://shop.oright.com.tw/product/783','peptide_him'],
+  },
+  conifer: {
+    name: '溫帶針葉林', sub: '乾燥型', tag: '乾燥，油脂不足', img: 'images/forest_conifer.png?v=20260824', scene: 'images/forest_scene_conifer.png', resultTemplate: 'images/result_baked_conifer.webp?v=20260921',
+    desc: '你就像堅韌挺立的針葉林，總是屹立不搖，卻也因環境乾燥而容易緊繃、缺水，需要更多滋潤守護。',
+    quote: '乾燥不是個性，只是缺了一點滋潤。',
+    analysis: [
+      ['油脂分泌不足','頭皮缺乏油脂保護，容易乾燥緊繃。','drop'],
+      ['頭皮容易脫屑','角質代謝失衡，出現乾燥皮屑困擾。','flake'],
+      ['緊繃搔癢感','乾燥環境下，頭皮容易感到緊繃不適。','wave'],
+      ['需加強保濕','建議補充水分與油脂，重建頭皮屏障。','leaf'],
+    ],
+    knowledge: [
+      '頭皮油脂是天然保護屏障，過度清潔反而會加速乾燥。',
+      '缺乏油脂會讓頭皮角質層受損，容易脫屑與敏感。',
+      '選擇溫和保濕成分，幫助頭皮鎖住水分，減少乾燥不適。',
+      '定期為頭皮進行深層滋潤保養，維持油水平衡與健康狀態。',
+    ],
+    products: [
+      ['水潤保濕','竹萃保濕洗髮精400mL','水潤保濕配方，溫和潔淨同時補充水分，減少洗後乾燥緊繃感。','drop','https://shop.oright.com.tw/product/178','bamboo_shampoo'],
+      ['深層滋潤','曠野玫瑰護髮油100mL','深層滋潤修護乾燥髮絲與頭皮，彈韌潤澤，綻放堅毅之美。','flask','https://shop.oright.com.tw/product/469','wildrose_oil'],
+      ['鎖水柔順','竹萃保濕護髮素250mL','水潤保濕鎖水，維持髮絲柔順有光澤，減少乾燥毛躁。','leaf','https://shop.oright.com.tw/product/292','bamboo_conditioner'],
+    ],
+    nightCare: ['四胜肽賦活養髮液 (女士)90ml','針對乾燥、屑感與頭皮問題，提供淨屑舒癢呵護，柔和花香調。','https://shop.oright.com.tw/product/785','peptide_her'],
+  },
+  mixed: {
+    name: '溫帶混合林', sub: '混合型', tag: '忽乾忽油，油水不均', img: 'images/forest_mixed.png?v=20260824', scene: 'images/forest_scene_mixed.png', resultTemplate: 'images/result_baked_mixed.png?v=20260921',
+    desc: '你就像四季分明的混合林，兼具針葉與闊葉的特質，頭皮容易出現局部出油、局部乾燥的混合狀態，需要因地制宜的呵護。',
+    quote: '忽油忽乾也沒關係，找到平衡點就好。',
+    analysis: [
+      ['油水分布不均','頭皮中線容易出油，髮尾卻偏乾燥。','drop'],
+      ['狀態時常波動','隨氣候與作息變化，頭皮狀態不穩定。','wave'],
+      ['清潔難以拿捏','太清爽會乾燥，太滋潤又容易出油。','pore'],
+      ['需加強平衡','建議選用溫和調理產品，兼顧油水平衡。','leaf'],
+    ],
+    knowledge: [
+      '混合性頭皮同時存在出油與乾燥兩種狀態，護理需分區對待。',
+      '過度清潔出油部位，反而容易刺激油脂分泌更旺盛。',
+      '選擇溫和調理成分，才能兼顧頭皮清爽與髮絲滋潤。',
+      '依季節與生活習慣調整洗護頻率，維持頭皮動態平衡。',
+    ],
+    products: [
+      ['油脂平衡','辣木洗髮精400mL','油脂平衡配方，舒緩頭皮，兼顧出油與乾燥兩種混合狀態。','drop','https://shop.oright.com.tw/product/596','moringa_shampoo'],
+      ['透氣舒爽','零度C頭皮清新噴霧50ml','清新頭皮，透氣舒爽，隨時調理頭皮油水狀態。','flask','https://shop.oright.com.tw/product/674','zeroc_spray'],
+      ['全效修護','咖啡因護髮素250mL','全方位滋養修護，兼顧髮根髮尾不同需求。','leaf','https://shop.oright.com.tw/product/296','coffee_conditioner'],
+    ],
+    nightCare: ['四胜肽賦活養髮液 (男士)90ml','針對油膩、乾燥、屑感引起的不穩定狀態，維持頭皮平衡，草本柑橘香調。','https://shop.oright.com.tw/product/783','peptide_him'],
+  },
+  decid: {
+    name: '溫帶落葉林', sub: '落髮型', tag: '季節交替，毛囊脆弱', img: 'images/forest_decid.png?v=20260824', scene: 'images/forest_scene_decid.png', resultTemplate: 'images/result_baked_decid.png?v=20260921',
+    desc: '你就像隨季節更迭而落葉的森林，頭皮與髮絲容易隨壓力與環境產生週期性變化，容易感受到落髮增加、髮絲纖細的困擾。',
+    quote: '掉的是壓力，留下的才是你自己。',
+    analysis: [
+      ['落髮量增加','隨季節與壓力變化，落髮情況較為明顯。','leaf-fall'],
+      ['髮絲纖細脆弱','毛囊營養不足，髮絲缺乏韌性與支撐力。','wave'],
+      ['防禦力下降','頭皮屏障較弱，外在刺激更容易影響健康。','pore'],
+      ['需加強養護','建議加強頭皮養分補給，維持毛囊健康。','leaf'],
+    ],
+    knowledge: [
+      '頭皮健康是髮絲穩固生長的基礎，養分不足容易造成落髮增加。',
+      '壓力與作息紊亂會加速毛囊老化，影響頭髮生長週期。',
+      '選擇具滋養根基功效的成分，幫助強健毛囊、延緩髮絲纖細化。',
+      '搭配頭皮按摩與規律作息，能有效減緩落髮困擾。',
+    ],
+    products: [
+      ['強韌髮根','咖啡因洗髮精400mL','咖啡因養護頭皮，強韌髮根，減少落髮困擾。','drop','https://shop.oright.com.tw/product/262','coffee_shampoo'],
+      ['壓力養護','四胜肽經典養髮液90ml','專為生活壓力下的養髮設計，持續使用，看見改變。','flask','https://shop.oright.com.tw/product/787','peptide_classic'],
+      ['全方位修護','咖啡因護髮素250mL','全方位滋養修護，強化髮絲韌性，減少斷裂分岔。','leaf','https://shop.oright.com.tw/product/296','coffee_conditioner'],
+    ],
+    nightCare: ['四胜肽經典養髮液90ml','專為生活壓力下的頭皮護理設計，舒緩放鬆、穩定頭皮狀態，柔和薰衣草木質調。','https://shop.oright.com.tw/product/787','peptide_classic'],
+  },
+  fog: {
+    name: '溫帶雨林', sub: '敏感型', tag: '發癢刺痛，敏感脆弱', img: 'images/forest_fog.png?v=20260824', scene: 'images/forest_scene_fog.png', resultTemplate: 'images/result_baked_fog.png?v=20260921',
+    desc: '你就像終年籠罩雲霧的溫帶雨林，濕潤的環境孕育豐富生態，卻也讓頭皮容易受到刺激，出現泛紅、發癢等敏感反應。',
+    quote: '敏感不是脆弱，只是更誠實地說出感受。',
+    analysis: [
+      ['頭皮容易泛紅','對外界刺激較敏感，容易出現泛紅反應。','wave'],
+      ['搔癢感明顯','潮濕環境助長細菌孳生，引發搔癢不適。','pore'],
+      ['屏障較為脆弱','頭皮防禦力較低，容易受刺激影響。','flake'],
+      ['需加強舒緩','建議選用溫和舒緩成分，減少刺激反應。','leaf'],
+    ],
+    knowledge: [
+      '敏感頭皮的屏障功能較弱，需避免高刺激性清潔成分。',
+      '潮濕悶熱容易滋生細菌，加劇頭皮搔癢與不適感。',
+      '選擇溫和、低敏配方，幫助舒緩頭皮並降低發炎反應。',
+      '維持頭皮乾爽通風，並定期進行舒緩護理，減少敏感反覆發生。',
+    ],
+    products: [
+      ['純淨溫和','蒲公英兒童溫和洗髮精400mL','純淨無瑕配方，溫和不刺激，連敏感頭皮也能安心使用。','drop','https://shop.oright.com.tw/product/236','dandelion_shampoo'],
+      ['沁涼舒緩','沁涼頭皮清新噴霧50mL','清新沁涼，舒緩頭皮不適感，緩解泛紅搔癢困擾。','flask','https://shop.oright.com.tw/product/240','cooling_spray'],
+      ['保濕修護','竹萃保濕護髮素250mL','水潤保濕配方溫和不厚重，修護敏感頭皮周邊髮絲。','leaf','https://shop.oright.com.tw/product/292','bamboo_conditioner'],
+    ],
+    nightCare: ['四胜肽賦活養髮液 (女士)90ml','專為環境壓力型頭皮設計，舒緩壓力造成的頭皮問題與泛紅搔癢，柔和花香調。','https://shop.oright.com.tw/product/785','peptide_her'],
+  },
+};
+
+/* 產品圖片路徑對照表：key 對應 FOREST_TYPES.products / nightCare 陣列中的第 6 個欄位 */
+const PRODUCT_IMAGES = {
+  zeroc_spray: 'images/product_zeroc_spray_cutout.png?v=20260831',
+  sicily_conditioner: 'images/product_sicily_conditioner.png',
+  coffee_conditioner: 'images/product_coffee_conditioner.png',
+  peptide_her: 'images/product_peptide_her.png',
+  cooling_spray: 'images/product_cooling_spray.png',
+  caffeine_tonic_plain: 'images/product_caffeine_tonic_plain.png',
+  coffee_shampoo: 'images/product_coffee_shampoo.png',
+  peptide_classic: 'images/product_peptide_classic.png',
+  dandelion_shampoo: 'images/product_dandelion_shampoo.png',
+  caffeine_melanin_tonic: 'images/product_caffeine_melanin_tonic.png',
+  wildrose_oil: 'images/product_wildrose_oil.png',
+  moringa_shampoo: 'images/product_moringa_shampoo.png',
+  peptide_him: 'images/product_peptide_him.png',
+  bamboo_conditioner: 'images/product_bamboo_conditioner.png',
+  teatree_shampoo: 'images/product_teatree_shampoo.png',
+  teatree_spray: 'images/product_teatree_spray.png',
+  bamboo_shampoo: 'images/product_bamboo_shampoo.png',
+};
+
+/* 頭皮狀態分析卡＆產品卡使用的內嵌 SVG 圖示 */
+const ICONS = {
+  drop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2c4 5 7 9 7 13a7 7 0 11-14 0c0-4 3-8 7-13z"/></svg>',
+  pore: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>',
+  wave: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 9c2-3 4-3 6 0s4 3 6 0 4-3 6 0"/><path d="M3 15c2-3 4-3 6 0s4 3 6 0 4-3 6 0"/></svg>',
+  leaf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 20c8 0 16-6 16-16C10 4 4 12 4 20z"/><path d="M4 20c4-6 8-9 16-16"/></svg>',
+  flake: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2v20M4 7l16 10M20 7L4 17"/></svg>',
+  'leaf-fall': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3c5 2 8 5 8 9a8 8 0 01-16 0c0-2 2-4 4-5"/><path d="M12 12v9"/></svg>',
+  flask: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 2h6M10 2v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V2"/></svg>',
+  moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z"/></svg>',
+};
+
+/* ============ QUESTIONS：5 題題庫，每個選項對應一個森林結果的 key ============ */
+const QUESTIONS = [
+  {
+    eyebrow: '歡迎來到，老樹下的低語',
+    mascot: '嗨，我是小歐精靈！走進森林後，先讓老樹問問你和水的關係——',
+    title: '老樹問起你和水的關係，你的洗頭習慣比較像哪一種？',
+    options: [
+      ['每天都要洗頭，不洗一天就覺得油膩不舒服','rain'],
+      ['兩三天不洗也不出油，洗完反而乾燥又緊繃','conifer'],
+      ['頭皮有些地方乾燥，有些地方卻很容易出油','mixed'],
+      ['洗頭時容易泛紅發癢，頭皮狀態總是不穩定','fog'],
+    ],
+  },
+  {
+    eyebrow: '你來到了，溪流的考驗',
+    mascot: '要渡過這條溪，得先誠實面對自己平常的飲食與習慣——',
+    title: '渡溪之前，你最近的飲食與生活習慣比較像哪種旅人？',
+    options: [
+      ['喜歡重口味與宵夜，晚睡對我來說是家常便飯','rain'],
+      ['平常很少喝水，經常待在冷氣房或吹風的地方','conifer'],
+      ['工作與生活總是忙不停，壓力一大就容易落髮','decid'],
+      ['遇到事情容易緊張焦慮，頭皮也跟著泛紅搔癢','fog'],
+    ],
+  },
+  {
+    eyebrow: '你不小心闖進了，藤蔓迷宮',
+    mascot: '迷宮考驗體力，穿越過後滿身是汗，頭皮最先透露出真相——',
+    title: '穿越藤蔓迷宮後，滿身是汗的你，頭皮通常會怎樣？',
+    options: [
+      ['汗一流下來，頭皮立刻變得油膩又不清爽','rain'],
+      ['一下悶熱一下乾燥，頭皮狀態總是捉摸不定','mixed'],
+      ['感覺髮量慢慢變少，髮絲也比以前更加細軟','decid'],
+      ['只要流一點汗，頭皮就容易出現泛紅與搔癢','fog'],
+    ],
+  },
+  {
+    eyebrow: '夜幕降臨，你加入了營火夜談',
+    mascot: '夜晚生起營火，聊起最近頭皮都在偷偷抗議些什麼——',
+    title: '營火夜談結束後，你的頭皮最先跳出來抗議的是什麼？',
+    options: [
+      ['頭皮乾燥又緊繃，有時甚至還會出現脫屑','conifer'],
+      ['頭皮一下出油一下乾燥，狀態總是很不穩定','mixed'],
+      ['早上起床梳頭時，會發現落髮量明顯增加','decid'],
+      ['頭皮容易泛紅刺癢，整體狀態敏感又脆弱','fog'],
+    ],
+  },
+  {
+    eyebrow: '你終於找到了，森林深處的寶箱',
+    mascot: '終於走到森林最深處，眼前有一個寶箱，打開之前，最後再問你一件事——',
+    title: '打開森林寶箱之前，你最想解決頭皮的哪一個困擾？',
+    options: [
+      ['改善頭皮出油與異味，希望整天維持清爽','rain'],
+      ['改善乾燥緊繃與脫屑，讓頭皮恢復水潤','conifer'],
+      ['改善頭皮油水失衡，找回穩定平衡狀態','mixed'],
+      ['改善落髮與髮絲細軟，讓髮根更加強健','decid'],
+    ],
+  },
+];
+
+/* ============ MASCOT: 小歐精靈 ============ */
+const MASCOT_SVG = `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <path d="M32 6C20 14 9 25 9 39a23 23 0 0046 0C55 25 44 14 32 6z" fill="#6B7F5D"/>
+  <path d="M32 6c2-5 7-7 11-7-1 5-5 8-9 9-1-1-1-1-2-2z" fill="#2F4A34"/>
+  <ellipse cx="32" cy="30" rx="17" ry="15" fill="#EFEADB" opacity="0.9"/>
+  <circle cx="24.5" cy="41" r="3" fill="#C9A66B" opacity="0.6"/>
+  <circle cx="39.5" cy="41" r="3" fill="#C9A66B" opacity="0.6"/>
+  <circle cx="25.5" cy="32" r="2.6" fill="#2B2B22"/>
+  <circle cx="38.5" cy="32" r="2.6" fill="#2B2B22"/>
+  <path d="M26 43c3 3 9 3 12 0" stroke="#2B2B22" stroke-width="2" fill="none" stroke-linecap="round"/>
+</svg>`;
+
+function renderMascotIcons(){
+  ['mascotIconIntro','mascotIconQuiz','mascotIconNickname'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.innerHTML = MASCOT_SVG;
+  });
+}
+renderMascotIcons();
+
+/* ============ AMBIENT LEAF PARTICLES ============ */
+const LEAF_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 20c8 0 16-6 16-16C10 4 4 12 4 20z"/></svg>';
+function spawnLeaves(containerId, count, durRange){
+  durRange = durRange || [7, 14];
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  el.innerHTML = '';
+  for(let i=0;i<count;i++){
+    const s = document.createElement('span');
+    const size = 10 + Math.random()*14;
+    s.style.left = (Math.random()*100) + '%';
+    s.style.width = size + 'px';
+    s.style.height = size + 'px';
+    s.style.animationDuration = (durRange[0] + Math.random()*(durRange[1]-durRange[0])) + 's';
+    s.style.animationDelay = (Math.random()*8) + 's';
+    s.innerHTML = LEAF_SVG;
+    el.appendChild(s);
+  }
+}
+spawnLeaves('leafParticles', 9);
+
+/* ============ JOURNEY TRACK ============ */
+function renderJourneyTrack(){
+  const track = document.getElementById('journeyTrack');
+  track.innerHTML = '';
+  QUESTIONS.forEach((q, i)=>{
+    const dot = document.createElement('div');
+    dot.className = 'journey-dot' + (i < currentQ ? ' done' : i === currentQ ? ' current' : '');
+    track.appendChild(dot);
+    if(i < QUESTIONS.length - 1){
+      const line = document.createElement('div');
+      line.className = 'journey-line';
+      const fill = document.createElement('div');
+      fill.className = 'journey-line-fill';
+      fill.style.width = (i < currentQ ? '100%' : '0%');
+      line.appendChild(fill);
+      track.appendChild(line);
+    }
+  });
+}
+
+/* ============ STATE ============ */
+/* 測驗流程：startQuiz() 初始化 → renderQuestion() 畫出當前題目
+   → selectOption() 記錄答案並前進 → finishQuiz() 依最高分結果呼叫 renderResult() */
+let currentQ = 0;
+let answers = [];
+let scores = { rain:0, conifer:0, mixed:0, decid:0, fog:0 };
+let navDirection = 'next';
+let currentResultKey = null;
+let userNickname = '';
+let mascotTypingTimer = null;
+
+function submitNickname(){
+  const input = document.getElementById('nicknameInput');
+  userNickname = input.value.trim();
+  startQuiz();
+}
+
+function restartAnimation(el){
+  if(!el) return;
+  el.style.animation = 'none';
+  void el.offsetWidth;
+  el.style.animation = '';
+}
+
+function typeMascotSpeech(text){
+  const el = document.getElementById('mascotSpeech');
+  if(mascotTypingTimer){
+    clearTimeout(mascotTypingTimer);
+    mascotTypingTimer = null;
+  }
+
+  el.classList.remove('is-typing');
+  el.textContent = '';
+
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    el.textContent = text;
+    return;
+  }
+
+  const characters = Array.from(text);
+  let index = 0;
+  el.classList.add('is-typing');
+
+  function typeNextCharacter(){
+    if(index >= characters.length){
+      el.classList.remove('is-typing');
+      mascotTypingTimer = null;
+      return;
+    }
+
+    const character = characters[index++];
+    el.textContent += character;
+    const pause = /[，。！？、—]/.test(character) ? 135 : 46;
+    mascotTypingTimer = setTimeout(typeNextCharacter, pause);
+  }
+
+  typeNextCharacter();
+}
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.body.classList.toggle('result-mode', id === 'screen-result');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function startQuiz(){
+  currentQ = 0; answers = []; scores = { rain:0, conifer:0, mixed:0, decid:0, fog:0 };
+  showScreen('screen-quiz');
+  spawnLeaves('leafParticlesQuiz', 5, [12, 20]);
+  renderQuestion();
+}
+
+function renderQuestion(){
+  const q = QUESTIONS[currentQ];
+
+  document.getElementById('qSceneTag').textContent = q.eyebrow;
+  document.getElementById('qTitle').textContent = q.title;
+  typeMascotSpeech(q.mascot);
+  document.getElementById('progressText').textContent = `第 ${currentQ+1} 站／共 ${QUESTIONS.length} 站`;
+  renderJourneyTrack();
+
+  const wrap = document.getElementById('qOptions');
+  restartAnimation(wrap);
+  wrap.innerHTML = '';
+  q.options.forEach((opt, idx)=>{
+    const div = document.createElement('div');
+    div.className = 'option' + (answers[currentQ]===idx ? ' selected' : '');
+    div.innerHTML = `<div class="option-mark"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="option-label">${opt[0]}</div>`;
+    div.onclick = () => selectOption(idx);
+    wrap.appendChild(div);
+  });
+}
+
+function selectOption(idx){
+  answers[currentQ] = idx;
+  const wrap = document.getElementById('qOptions');
+  Array.from(wrap.children).forEach((el, i)=>{
+    el.classList.toggle('selected', i===idx);
+  });
+  setTimeout(()=>{
+    if(currentQ < QUESTIONS.length - 1){
+      currentQ++;
+      renderQuestion();
+    } else {
+      finishQuiz();
+    }
+  }, 260);
+}
+
+function prevQuestion(){
+  if(currentQ > 0){
+    currentQ--;
+    renderQuestion();
+  } else {
+    showScreen('screen-nickname');
+  }
+}
+
+function finishQuiz(){
+  scores = { rain:0, conifer:0, mixed:0, decid:0, fog:0 };
+  answers.forEach((idx, qi)=>{
+    if(idx === undefined) return;
+    const key = QUESTIONS[qi].options[idx][1];
+    scores[key]++;
+  });
+  let best = 'rain', bestScore = -1;
+  Object.keys(scores).forEach(k=>{
+    if(scores[k] > bestScore){ bestScore = scores[k]; best = k; }
+  });
+  renderResult(best);
+  showScreen('screen-result');
+  spawnLeaves('leafParticlesResult', 7);
+}
+
+function setResultImage(src, forestName){
+  const img = document.getElementById('resImg');
+  img.classList.add('is-loading');
+  img.removeAttribute('srcset');
+  img.style.visibility = 'visible';
+  img.style.opacity = '1';
+  img.alt = `${forestName}森林角色插畫`;
+  img.dataset.fallbackTried = '';
+
+  const reveal = () => {
+    img.classList.remove('is-loading');
+    img.style.visibility = 'visible';
+    img.style.opacity = '1';
+  };
+  img.onload = reveal;
+  img.onerror = () => {
+    if(!img.dataset.fallbackTried){
+      img.dataset.fallbackTried = 'true';
+      const retryUrl = new URL(src, window.location.origin + '/');
+      retryUrl.searchParams.set('retry', Date.now().toString());
+      img.src = retryUrl.href;
+      return;
+    }
+    reveal();
+  };
+  img.src = src;
+  if(img.complete && img.naturalWidth > 0) reveal();
+}
+
+function renderResult(key){
+  const d = FOREST_TYPES[key];
+  currentResultKey = key;
+  const resultScreen = document.getElementById('screen-result');
+  resultScreen.dataset.forest = key;
+  const resultEdgeColors = {
+    rain:'#F5EAE0', conifer:'#EFE4DB', mixed:'#FAEBE4', decid:'#F4E6D8', fog:'#FAEFE7'
+  };
+  resultScreen.style.setProperty('--result-edge', resultEdgeColors[key] || '#F5F0E7');
+  document.querySelector('.result-hero').style.backgroundImage = `url('${d.resultTemplate}')`;
+
+  // retrigger entrance animations for static hero elements (in case of restart)
+  ['resName','resDesc'].forEach(id=>restartAnimation(document.getElementById(id)));
+  restartAnimation(document.getElementById('resGreeting'));
+  restartAnimation(document.querySelector('.result-story-grid'));
+  restartAnimation(document.querySelector('.portrait-cta'));
+  restartAnimation(document.querySelector('.gift-row'));
+
+  document.getElementById('resName').textContent = d.name;
+  document.getElementById('resGreeting').textContent = userNickname ? `${userNickname}，你的森林角色` : '你的森林角色';
+  document.getElementById('resDesc').textContent = d.desc;
+
+  const an = document.getElementById('resAnalysis');
+  an.innerHTML = d.analysis.map(a => `
+    <div class="analysis-card">
+      <div class="analysis-icon">${ICONS[a[2]]}</div>
+      <div class="analysis-title">${a[0]}</div>
+      <div class="analysis-copy">${a[1]}</div>
+    </div>`).join('');
+
+  const pr = document.getElementById('resProducts');
+  pr.innerHTML = d.products.map((p, i) => {
+    const imgKey = p[5];
+    const media = imgKey && PRODUCT_IMAGES[imgKey]
+      ? `<img src="${PRODUCT_IMAGES[imgKey]}" alt="${p[1]}">`
+      : ICONS[p[3]];
+    return `
+    ${i > 0 ? '<div class="product-plus">+</div>' : ''}
+    <a class="product-card" href="${p[4]}" target="_blank" rel="noopener">
+      <div class="product-icon${imgKey && PRODUCT_IMAGES[imgKey] ? ' has-photo' : ''}">${media}</div>
+      <div class="product-body">
+        <div class="product-tag">${p[0]}</div>
+        <div class="product-name">${p[1]}</div>
+        <div class="product-desc">${p[2]}</div>
+      </div>
+      <div class="product-arrow">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </a>`;
+  }).join('');
+
+  document.getElementById('resNightCareName').textContent = d.nightCare[0];
+  document.getElementById('resNightCareDesc').textContent = d.nightCare[1];
+  document.getElementById('resNightCareLink').href = d.nightCare[2];
+  const ncImgKey = d.nightCare[3];
+  const ncIconEl = document.getElementById('resNightCareIcon');
+  if(ncImgKey && PRODUCT_IMAGES[ncImgKey]){
+    ncIconEl.classList.add('has-photo');
+    ncIconEl.innerHTML = `<img src="${PRODUCT_IMAGES[ncImgKey]}" alt="${d.nightCare[0]}">`;
+  } else {
+    ncIconEl.classList.remove('has-photo');
+    ncIconEl.innerHTML = ICONS.moon;
+  }
+}
+
+function restartQuiz(){
+  startQuiz();
+}
+
+/* ============ SHARE ============ */
+function getShareUrl(){
+  const base = `${window.location.origin}/`;
+  return currentResultKey ? `${base}?forest=${encodeURIComponent(currentResultKey)}` : base;
+}
+
+function getShareText(shareUrl = getShareUrl()){
+  if(!currentResultKey) return `我在 O'right 森林人格測驗，測出了我的頭皮森林類型！你也來測測看吧。\n${shareUrl}`;
+  const d = FOREST_TYPES[currentResultKey];
+  const who = userNickname ? userNickname : '我';
+  return `${who}在 O'right 森林人格測驗，測出是「${d.name}｜${d.sub}」！你的頭皮又是哪一種森林呢？\n${shareUrl}`;
+}
+
+async function copyShareText(text){
+  try{
+    if(navigator.clipboard && window.isSecureContext){
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  }catch(e){ /* use the selection fallback below */ }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  return copied;
+}
+
+// share-URL templates for platforms that just open a share link in a new tab
+const SHARE_URL_BUILDERS = {
+  line: (url, text) => `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
+  fb: (url) => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
+};
+
+async function shareResult(platform){
+  const shareUrl = getShareUrl();
+  const shareText = getShareText(shareUrl);
+
+  if(platform === 'copy'){
+    const label = document.getElementById('copyLabel');
+    const copied = await copyShareText(shareUrl);
+    label.textContent = copied ? '連結已複製！' : '請再試一次';
+    setTimeout(()=>{ label.textContent = '複製連結'; }, 1600);
+    return;
+  }
+
+  if(platform === 'ig' || platform === 'fb' || platform === 'line'){
+    copyShareText(shareText);
+    shareImageNatively(platform, shareUrl, shareText);
+    return;
+  }
+
+  const buildUrl = SHARE_URL_BUILDERS[platform];
+  if(buildUrl){
+    window.open(buildUrl(shareUrl, shareText), '_blank', 'noopener');
+  }
+}
+
+// 直接用網站內的圖片素材繪製分享圖，不依賴外部截圖套件，
+// 避免手機或公司網路阻擋外部程式後，下載到空白圖片。
+function loadCanvasImage(src){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`Image failed to load: ${src}`));
+    img.src = new URL(src, window.location.href).href;
+  });
+}
+
+function drawRoundedRect(ctx, x, y, width, height, radius){
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function drawCreditVoucher(ctx, x, y, width, height, label){
+  ctx.save();
+  drawRoundedRect(ctx, x, y, width, height, 5);
+  ctx.fillStyle = '#FBFAF3';
+  ctx.fill();
+  ctx.strokeStyle = '#78907D';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  drawRoundedRect(ctx, x + 6, y + 6, width - 12, height - 12, 3);
+  ctx.strokeStyle = 'rgba(120,144,125,.55)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#284B35';
+  ctx.font = '700 29px GenYoGothic1501, sans-serif';
+  ctx.fillText('200元', x + width / 2, y + height * .44);
+  ctx.font = '500 15px GenYoGothic1501, sans-serif';
+  ctx.fillText(label, x + width / 2, y + height * .65);
+  ctx.restore();
+}
+
+function drawContainedImage(ctx, img, x, y, width, height){
+  const scale = Math.min(width / img.naturalWidth, height / img.naturalHeight);
+  const drawWidth = img.naturalWidth * scale;
+  const drawHeight = img.naturalHeight * scale;
+  ctx.drawImage(img, x + (width - drawWidth) / 2, y + (height - drawHeight) / 2, drawWidth, drawHeight);
+}
+
+function drawCoverImage(ctx, img, x, y, width, height){
+  const scale = Math.max(width / img.naturalWidth, height / img.naturalHeight);
+  const drawWidth = img.naturalWidth * scale;
+  const drawHeight = img.naturalHeight * scale;
+  ctx.drawImage(img, x + (width - drawWidth) / 2, y + (height - drawHeight) / 2, drawWidth, drawHeight);
+}
+
+function drawWrappedText(ctx, text, centerX, startY, maxWidth, lineHeight, maxLines){
+  const chars = Array.from(text || '');
+  const lines = [];
+  let line = '';
+  chars.forEach(char => {
+    const next = line + char;
+    if(line && ctx.measureText(next).width > maxWidth){
+      lines.push(line);
+      line = char;
+    }else{
+      line = next;
+    }
+  });
+  if(line) lines.push(line);
+  lines.slice(0, maxLines).forEach((item, index) => ctx.fillText(item, centerX, startY + index * lineHeight));
+}
+
+function drawWrappedTextLeft(ctx, text, startX, startY, maxWidth, lineHeight, maxLines){
+  const chars = Array.from(text || '');
+  const lines = [];
+  let line = '';
+  chars.forEach(char => {
+    const next = line + char;
+    if(line && ctx.measureText(next).width > maxWidth){
+      lines.push(line);
+      line = char;
+    }else{
+      line = next;
+    }
+  });
+  if(line) lines.push(line);
+  lines.slice(0, maxLines).forEach((item, index) => ctx.fillText(item, startX, startY + index * lineHeight));
+}
+
+function drawCoverImageCircle(ctx, img, centerX, centerY, diameter){
+  const radius = diameter / 2;
+  const scale = Math.max(diameter / img.naturalWidth, diameter / img.naturalHeight);
+  const drawWidth = img.naturalWidth * scale;
+  const drawHeight = img.naturalHeight * scale;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.drawImage(img, centerX - drawWidth / 2, centerY - drawHeight / 2, drawWidth, drawHeight);
+  ctx.restore();
+}
+
+async function captureResultImage(){
+  const data = currentResultKey && FOREST_TYPES[currentResultKey];
+  if(!data) throw new Error('Result data not found');
+
+  if(document.fonts && document.fonts.ready) await document.fonts.ready;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1080;
+  canvas.height = 1350;
+  const ctx = canvas.getContext('2d');
+  const [resultTemplate, giftCheckup, giftSample] = await Promise.all([
+    loadCanvasImage(data.resultTemplate),
+    loadCanvasImage('images/gift_ai_checkup_nocable.webp?v=20260903'),
+    loadCanvasImage('images/gift_wildrose_cutout.webp?v=20260903')
+  ]);
+
+  drawCoverImage(ctx, resultTemplate, 0, 0, canvas.width, canvas.height);
+
+  const greetingX = { rain:41, conifer:36, mixed:30, decid:33, fog:28 };
+  const greetingY = { rain:377, conifer:313, mixed:317, decid:344, fog:308 };
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#123D2D';
+  ctx.font = '500 27px GenYoGothic1501, sans-serif';
+  ctx.fillText(document.getElementById('resGreeting').textContent, greetingX[currentResultKey] || 32, greetingY[currentResultKey] || 317);
+
+  ctx.textAlign = 'center';
+
+  const gifts = [
+    [giftCheckup, 'AI 智能頭皮檢測'],
+    [giftSample, '體驗包']
+  ];
+  const giftX = [205, 540];
+  gifts.forEach((gift, index) => {
+    const giftSize = index === 0 ? 174 : 146;
+    drawContainedImage(ctx, gift[0], giftX[index] - giftSize / 2, 959 - giftSize / 2, giftSize, giftSize);
+    ctx.fillStyle = '#1E3323';
+    ctx.font = '600 22px GenYoGothic1501, sans-serif';
+    drawWrappedText(ctx, gift[1], giftX[index], 1064, 270, 29, 2);
+    ctx.fillStyle = '#B68A4B';
+    ctx.font = '700 40px GenYoGothic1501, sans-serif';
+    ctx.fillText('+', giftX[index] + 167, 959);
+  });
+
+  drawCreditVoucher(ctx, 785, 891, 84, 136, '線上體驗金');
+  drawCreditVoucher(ctx, 881, 891, 84, 136, '線下體驗金');
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#1E3323';
+  ctx.font = '600 22px GenYoGothic1501, sans-serif';
+  ctx.fillText('體驗金四百元', 875, 1064);
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(67,39,26,.25)';
+  ctx.shadowBlur = 14;
+  ctx.shadowOffsetY = 7;
+  drawRoundedRect(ctx, 360, 1142, 360, 68, 34);
+  ctx.fillStyle = '#603C2B';
+  ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = '#EEDAC7';
+  ctx.font = '700 28px GenYoGothic1501, sans-serif';
+  ctx.fillText('點擊圖片領好禮', 540, 1176);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Image creation failed')), 'image/png');
+  });
+}
+
+function triggerImageDownload(blob){
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  const forestName = currentResultKey ? FOREST_TYPES[currentResultKey].name : '森林人格測驗';
+  link.href = objectUrl;
+  link.download = `O-right-${forestName}-結果.png`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+}
+
+async function saveResultBlob(blob){
+  const forestName = currentResultKey ? FOREST_TYPES[currentResultKey].name : '森林人格測驗';
+  const fileName = `O-right-${forestName}-結果.png`;
+  let file = null;
+  try{
+    file = new File([blob], fileName, { type:'image/png' });
+  }catch(error){ /* older browsers use the normal download fallback */ }
+
+  // 手機瀏覽器常會忽略 blob 網址的 download 屬性，
+  // 改由使用者再次點擊後直接開啟系統面板，才能選擇儲存到照片或檔案。
+  let canShareFile = false;
+  try{
+    canShareFile = Boolean(file && navigator.share && navigator.canShare && navigator.canShare({ files:[file] }));
+  }catch(error){ /* use the normal download fallback */ }
+  if(canShareFile){
+    try{
+      await navigator.share({ files:[file], title:'O\'right 森林人格測驗結果' });
+      return true;
+    }catch(error){
+      if(error && error.name === 'AbortError') return false;
+    }
+  }
+
+  triggerImageDownload(blob);
+  return true;
+}
+
+function showResultImagePreview(blob){
+  let preview = document.getElementById('resultImagePreview');
+  if(!preview){
+    preview = document.createElement('div');
+    preview.id = 'resultImagePreview';
+    preview.className = 'result-image-preview';
+    preview.hidden = true;
+    preview.innerHTML = `
+      <div class="result-image-preview-card" role="dialog" aria-modal="true" aria-label="結果圖片預覽">
+        <img alt="森林人格測驗結果圖片">
+        <div class="result-image-preview-actions">
+          <button type="button">關閉</button>
+          <a class="save-result-image-btn" href="#" download target="_blank" rel="noopener">下載圖片</a>
+        </div>
+        <p class="result-image-preview-tip">手機請點「下載圖片」；若開啟圖片預覽，也可以長按上方圖片儲存。</p>
+      </div>`;
+    document.body.appendChild(preview);
+    preview.querySelector('button').addEventListener('click', () => {
+      preview.hidden = true;
+      if(preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
+      preview.dataset.objectUrl = '';
+    });
+    preview.addEventListener('click', event => {
+      if(event.target === preview) preview.querySelector('button').click();
+    });
+  }
+  if(preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
+  const objectUrl = URL.createObjectURL(blob);
+  preview.dataset.objectUrl = objectUrl;
+  preview._resultBlob = blob;
+  preview.querySelector('img').src = objectUrl;
+  const downloadLink = preview.querySelector('.save-result-image-btn');
+  const forestName = currentResultKey ? FOREST_TYPES[currentResultKey].name : '森林人格測驗';
+  downloadLink.href = objectUrl;
+  downloadLink.download = `O-right-${forestName}-結果.png`;
+  preview.hidden = false;
+}
+
+async function downloadResultImage(button){
+  const text = button && button.querySelector('span');
+  if(button) button.disabled = true;
+  if(text) text.textContent = '圖片製作中…';
+  try{
+    const blob = await captureResultImage();
+    showResultImagePreview(blob);
+    const isMobileDevice = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    if(!isMobileDevice) triggerImageDownload(blob);
+    if(text) text.textContent = '圖片已產生';
+  }catch(e){
+    console.error(e);
+    alert('圖片產生失敗，請稍後再試一次。');
+    if(text) text.textContent = '下載結果圖片';
+  }finally{
+    setTimeout(() => {
+      if(button) button.disabled = false;
+      if(text) text.textContent = '下載結果圖片';
+    }, 1200);
+  }
+}
+
+async function shareImageNatively(platform, shareUrl, shareText){
+  const label = 'O\'right 森林人格測驗';
+
+  try{
+    const blob = await captureResultImage();
+    const file = new File([blob], 'forest-result.png', { type:'image/png' });
+
+    if(navigator.canShare && navigator.canShare({ files:[file] })){
+      try{
+        await navigator.share({ files:[file], title:label, text:shareText });
+      }catch(e){ /* user cancelled share sheet - do nothing */ }
+      return;
+    }
+
+    // Can't share a file on this browser (e.g. desktop): download the image
+    // and copy the full share text so it can be pasted with the image.
+    triggerImageDownload(blob);
+    const platformNames = { fb:'Facebook', ig:'Instagram', line:'LINE' };
+    alert(`圖片已下載，分享文字也複製好了！打開 ${platformNames[platform] || '分享平台'} 上傳圖片並貼上文字即可。`);
+  }catch(e){
+    console.error(e);
+    fallbackShareLink(platform, shareUrl, shareText, label);
+  }
+}
+
+function fallbackShareLink(platform, shareUrl, shareText, label){
+  if(navigator.share){
+    navigator.share({ title:label, text:shareText }).catch(()=>{});
+    return;
+  }
+  if(platform === 'fb' || platform === 'line'){
+    window.open(SHARE_URL_BUILDERS[platform](shareUrl, shareText), '_blank', 'noopener');
+    return;
+  }
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(shareText).then(()=>{
+      alert('分享文字與連結已複製，貼到限時動態或個人簡介就可以分享囉！');
+    });
+  }
+}
+
+/* ============ SHARED-LINK DEEP LINK ============ */
+(function handleSharedLink(){
+  let params = new URLSearchParams(window.location.search);
+  if(!params.get('forest') && window.parent !== window){
+    try{
+      params = new URLSearchParams(window.parent.location.search);
+    }catch(e){ /* embedded on another origin: keep the iframe query string */ }
+  }
+  const forest = params.get('forest');
+  if(forest && FOREST_TYPES[forest]){
+    renderResult(forest);
+    showScreen('screen-result');
+    spawnLeaves('leafParticlesResult', 7);
+  }
+})();
+</script>
+</body>
+</html>
